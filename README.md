@@ -1,6 +1,6 @@
-# AceJump
+# AceJump-Chinese
 
-A plugin for Sublime Text 3 heavily inspired by AceJump for emacs.
+A plugin for Sublime Text heavily inspired by AceJump for emacs.
 
 AceJump allows you to move the cursor to any character to any place currently on screen.
 To clarify, you can jump between characters in all visible portions of currently open documents in any panes.
@@ -9,6 +9,10 @@ Like it's emacs counterpart, AceJump for sublime features word (on the image bel
 ![AceJump](https://cloud.githubusercontent.com/assets/8056203/10858871/92069504-7f58-11e5-8593-e373121fd917.gif)
 
 After selecting a mode, you type in a character (except in line mode, where you don't have to type in anything) and appropriate labels are displayed. Then all you need to do is press the key from the label and voila!
+
+## Fork Modification
+
+- Support jumping to a Chinese char via the first char of its pinyin.
 
 ## Install
 
