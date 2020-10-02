@@ -12,7 +12,9 @@ After selecting a mode, you type in a character (except in line mode, where you 
 
 ## Fork Modification
 
+- Some refactoring.
 - Support jumping to a Chinese char via the first char of its pinyin.
+- New hinting mode: via inline phantom
 
 ## Install
 
