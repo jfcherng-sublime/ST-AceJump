@@ -10,24 +10,12 @@ Like it's emacs counterpart, AceJump for sublime features word (on the image bel
 
 After selecting a mode, you type in a character (except in line mode, where you don't have to type in anything) and appropriate labels are displayed. Then all you need to do is press the key from the label and voila!
 
-## Installation
+## Install
 
-### PackageControl
-
-You can install AceJump from [PackageControl](http://wbond.net/sublime_packages/package_control) by following the steps below:
-
-- Open up the command palette and select ```Package Control: Install Package```
-- Wait for the packages index to load and select ```AceJump```
-
-### Manual installation
-
-You can install AceJump manually using git by running the following command within sublime packages directory (Preferences > Browse Packages):
-
-```
-$ git clone git@github.com:ice9js/ace-jump-sublime.git AceJump/
-```
-
-Or you can just copy the contents of this repository into ```Packages/AceJump```.
+1. This plugin is not published on the official Package Control.
+   To install, add a custom repository for Package Control with steps described
+   [here](https://github.com/jfcherng-sublime/ST-my-package-control/blob/master/README.md#usage).
+1. Install `AceJump-Chinese` via Package Control.
 
 ## Usage
 
