@@ -13,6 +13,13 @@ PACKAGE_NAME = __package__.partition(".")[0]
 SETTINGS_FILENAME = "AceJump.sublime-settings"
 SYTNAX_FILENAME = "Packages/{}/AceJump.sublime-syntax".format(PACKAGE_NAME)
 
+PHANTOM_TEMPLATE = """
+<body class="ace-jump-phantom">
+    <style>{css}</style>
+    <span class="label">{label}</span>
+</body>
+"""
+
 # plugin modes
 MODE_ADD_CURSOR = 0
 MODE_SELECT = 1
@@ -20,11 +27,17 @@ MODE_JUMP_BEFORE = 2
 MODE_JUMP_AFTER = 3
 MODE_DEFAULT = MODE_JUMP_BEFORE
 
+# plugin hinting modes
+HINTING_MODE_REPLACE_CHAR = 1
+HINTING_MODE_INLINE_PHANTOM = 2
+HINTING_MODE_DEFAULT = HINTING_MODE_REPLACE_CHAR
+
 xpy = Pinyin()
 last_index = 0
 hints = []  # type: List[sublime.Region]
 search_regex = r""
 chinese_regex_obj = re.compile("[\u4E00-\u9FD5]+", re.U)
+phantom_sets = {}  # type: Dict[int, sublime.PhantomSet]
 
 next_search = False  # type: Union[int, bool]
 ace_jump_active = False
@@ -99,6 +112,10 @@ def get_views_sel(views: List[sublime.View]) -> List[sublime.Selection]:
     return [view.sel() for view in views]
 
 
+def get_view_phantom_set(view: sublime.View) -> sublime.PhantomSet:
+    return phantom_sets.setdefault(view.id(), sublime.PhantomSet(view))
+
+
 def set_plugin_mode(_mode: int) -> None:
     global mode
 
@@ -145,6 +162,7 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
         self.case_sensitivity = cast(bool, settings.get("search_case_sensitivity", True))
         self.jump_behind_last = cast(bool, settings.get("jump_behind_last_characters", False))
         self.save_files_after_jump = cast(bool, settings.get("save_files_after_jump", False))
+        self.hinting_mode = cast(int, settings.get("hinting_mode", HINTING_MODE_DEFAULT))
 
         self.view_settings = cast(List[Any], settings.get("view_settings", []))
         self.view_values = get_views_settings(self.all_views, self.view_settings)
@@ -240,8 +258,9 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
 
             self.views.remove(view)
 
-        set_views_syntax(self.all_views, SYTNAX_FILENAME)
-        set_views_settings(self.all_views, self.view_settings, self.view_values)
+        if self.hinting_mode == HINTING_MODE_REPLACE_CHAR:
+            set_views_syntax(self.all_views, SYTNAX_FILENAME)
+            set_views_settings(self.all_views, self.view_settings, self.view_values)
 
     def remove_labels(self) -> None:
         """Removes all previously added labels"""
@@ -423,10 +442,14 @@ class AddAceJumpLabelsCommand(sublime_plugin.TextCommand):
 
         settings = sublime.load_settings(SETTINGS_FILENAME)
         self.should_find_chinese = cast(bool, settings.get("should_find_chinese", True))
+        self.hinting_mode = cast(int, settings.get("hinting_mode", HINTING_MODE_DEFAULT))
+        self.phantom_css = cast(str, settings.get("phantom_css", ""))
 
         characters = self.find(regex, region_type, len(labels), case_sensitive)
         self.add_labels(edit, characters, labels)
-        self.view.add_regions("ace_jump_hints", characters, highlight)
+
+        if self.hinting_mode == HINTING_MODE_REPLACE_CHAR:
+            self.view.add_regions("ace_jump_hints", characters, highlight)
 
         hints += characters
 
@@ -475,15 +498,29 @@ class AddAceJumpLabelsCommand(sublime_plugin.TextCommand):
     def add_labels(self, edit: sublime.Edit, regions: List[sublime.Region], labels: str) -> None:
         """Replaces the given regions with labels"""
 
+        phantoms = []  # List[sublime.Phantom]
+
         for idx, region in enumerate(regions):
             label = labels[last_index + idx - len(regions)]
 
-            # if the target char is Chinese,
-            # use full-width label to prevent from content position shifting
-            if chinese_regex_obj.match(self.view.substr(region)):
-                label = width_converter.h2f(label)
+            if self.hinting_mode == HINTING_MODE_REPLACE_CHAR:
+                # if the target char is Chinese,
+                # use full-width label to prevent from content position shifting
+                if chinese_regex_obj.match(self.view.substr(region)):
+                    label = width_converter.h2f(label)
 
-            self.view.replace(edit, region, label)
+                self.view.replace(edit, region, label)
+            elif self.hinting_mode == HINTING_MODE_INLINE_PHANTOM:
+                phantoms.append(
+                    sublime.Phantom(
+                        region,
+                        PHANTOM_TEMPLATE.format(css=self.phantom_css, label=label),
+                        sublime.LAYOUT_INLINE,
+                    )
+                )
+
+        ps = get_view_phantom_set(self.view)
+        ps.update(phantoms)
 
     def get_target_region(self, region_type: str) -> sublime.Region:
         return {
@@ -496,9 +533,16 @@ class RemoveAceJumpLabelsCommand(sublime_plugin.TextCommand):
     """Command for removing labels from the views"""
 
     def run(self, edit: sublime.Edit) -> None:
-        self.view.erase_regions("ace_jump_hints")
-        self.view.end_edit(edit)
-        self.view.run_command("undo")
+        settings = sublime.load_settings(SETTINGS_FILENAME)
+        self.hinting_mode = cast(bool, settings.get("hinting_mode", HINTING_MODE_DEFAULT))
+
+        if self.hinting_mode == HINTING_MODE_REPLACE_CHAR:
+            self.view.erase_regions("ace_jump_hints")
+            self.view.end_edit(edit)
+            self.view.run_command("undo")
+        elif self.hinting_mode == HINTING_MODE_INLINE_PHANTOM:
+            ps = get_view_phantom_set(self.view)
+            ps.update([])
 
 
 class PerformAceJumpCommand(sublime_plugin.TextCommand):

@@ -20,6 +20,13 @@
     // Should this plugin also find Chinese chars via pinyin?
     "should_find_chinese": true,
 
+    // valid values: 1 (replace char), 2 (inline phantom)
+    "hinting_mode": 1,
+
+    // the CSS applies to phantoms when highlight_mode is 2 (inline phantom)
+    // @see https://www.sublimetext.com/docs/minihtml.html#css
+    "phantom_css": "html, body { padding: 0; margin: 0; } .label { background-color: var(--foreground); color: var(--background); padding: 0 0.25em; line-height: 1; font-size: 0.98em; }",
+
     // View settings that should be respected when switching the syntax
     // highlighting mode. In case a plugin you use adds a new
     // setting to a view, you probably want to add it to this list.
