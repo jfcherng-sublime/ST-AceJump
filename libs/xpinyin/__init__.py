@@ -52,15 +52,10 @@ class Pinyin(object):
     .. _chinese\_pinyin: https://github.com/flyerhzm/chinese_pinyin
     """
 
-    data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                             'Mandarin.dat')
+    def __init__(self):
+        from . import Mandarin
 
-    def __init__(self, data_path=data_path):
-        self.dict = {}
-        with open(data_path) as f:
-            for line in f:
-                k, v = line.split('\t')
-                self.dict[k] = v
+        self.dict = Mandarin.data
 
     @staticmethod
     def decode_pinyin(s):
