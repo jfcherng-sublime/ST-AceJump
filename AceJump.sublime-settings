@@ -13,7 +13,7 @@
     // By saving all effected files
     "save_files_after_jump": false,
 
-    // If turned on, character mode will jump after a character 
+    // If turned on, character mode will jump after a character
     // it it's the last character on a line.
     "jump_behind_last_characters": false,
 
@@ -53,5 +53,5 @@
         "match_brackets_square",
         "match_brackets_braces",
         "match_brackets_angle",
-    ]
+    ],
 }

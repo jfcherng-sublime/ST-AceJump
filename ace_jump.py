@@ -486,7 +486,6 @@ class AddAceJumpLabelsCommand(sublime_plugin.TextCommand):
             self.view.replace(edit, region, label)
 
     def get_target_region(self, region_type: str) -> sublime.Region:
-
         return {
             "visible_region": lambda view: view.visible_region(),
             "current_line": lambda view: view.line(view.sel()[0]),
