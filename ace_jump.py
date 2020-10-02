@@ -82,7 +82,7 @@ def set_views_syntax(views: List[sublime.View], syntaxes: Union[str, List[str]])
         except IndexError:
             syntax = syntaxes[-1]
 
-        views[i].set_syntax_file(syntax)
+        views[i].assign_syntax(syntax)
 
 
 def set_views_sel(views: List[sublime.View], selections: List[sublime.Selection]) -> None:
