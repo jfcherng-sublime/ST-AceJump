@@ -218,7 +218,7 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
 
             self.views.remove(view)
 
-        set_views_syntax(self.all_views, "Packages/AceJump/AceJump.tmLanguage")
+        set_views_syntax(self.all_views, "Packages/AceJump-Chinese/AceJump.tmLanguage")
         set_views_settings(self.all_views, self.view_settings, self.view_values)
 
     def remove_labels(self):
