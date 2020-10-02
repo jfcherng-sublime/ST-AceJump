@@ -17,6 +17,9 @@
     // it it's the last character on a line.
     "jump_behind_last_characters": false,
 
+    // Should this plugin also find Chinese chars via pinyin?
+    "should_find_chinese": true,
+
     // View settings that should be respected when switching the syntax
     // highlighting mode. In case a plugin you use adds a new
     // setting to a view, you probably want to add it to this list.

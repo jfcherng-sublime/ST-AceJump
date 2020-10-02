@@ -8,34 +8,37 @@ from typing import Any, Callable, Dict, List, Optional, Union, cast
 from .libs import width_converter
 from .libs.xpinyin import Pinyin
 
+PACKAGE_NAME = __package__.partition(".")[0]
+
+SETTINGS_FILENAME = "AceJump.sublime-settings"
+SYTNAX_FILENAME = "Packages/{}/AceJump.sublime-syntax".format(PACKAGE_NAME)
+
+# plugin modes
+MODE_ADD_CURSOR = 0
+MODE_SELECT = 1
+MODE_JUMP_BEFORE = 2
+MODE_JUMP_AFTER = 3
+MODE_DEFAULT = MODE_JUMP_BEFORE
+
 xpy = Pinyin()
 last_index = 0
 hints = []  # type: List[sublime.Region]
 search_regex = r""
 chinese_regex_obj = re.compile("[\u4E00-\u9FD5]+", re.U)
 
-next_search = False
-
-# MODES
-# 0: default (jumps in front of the selection)
-# 1: select
-# 2: add-cursor
-# 3: jump-after
-mode = 0
-
+next_search = False  # type: Union[int, bool]
 ace_jump_active = False
 
 
 def get_active_views(window: sublime.Window, current_buffer_only: bool) -> List[sublime.View]:
     """Returns all currently visible views"""
 
-    views = []
     if current_buffer_only:
-        views.append(window.active_view())
+        group_indexes = [window.active_group()]
     else:
-        for group in range(window.num_groups()):
-            views.append(window.active_view_in_group(group))
-    return views
+        group_indexes = list(range(window.num_groups()))
+
+    return [window.active_view_in_group(idx) for idx in group_indexes]  # type: ignore
 
 
 def set_views_setting(views: List[sublime.View], setting: str, values: List[Any]) -> None:
@@ -55,23 +58,20 @@ def set_views_settings(views: List[sublime.View], settings: List[str], values: L
 def get_views_setting(views: List[sublime.View], setting: str) -> List[Any]:
     """Returns the setting value for all given views"""
 
-    settings = []
-    for view in views:
-        settings.append(view.settings().get(setting))
-    return settings
+    return [view.settings().get(setting) for view in views]
 
 
-def get_views_settings(views: List[sublime.View], settings: List[str]) -> List[Any]:
+def get_views_settings(views: List[sublime.View], settings: List[str]) -> List[List[Any]]:
     """Gets the settings for every given view"""
 
-    values = []
-    for setting in settings:
-        values.append(get_views_setting(views, setting))
-    return values
+    return [get_views_setting(views, setting) for setting in settings]
 
 
 def set_views_syntax(views: List[sublime.View], syntaxes: Union[str, List[str]]) -> None:
     """Sets the syntax highlighting for all given views"""
+
+    if not syntaxes:
+        return
 
     if isinstance(syntaxes, str):
         syntaxes = [syntaxes]
@@ -96,10 +96,30 @@ def set_views_sel(views: List[sublime.View], selections: List[sublime.Selection]
 def get_views_sel(views: List[sublime.View]) -> List[sublime.Selection]:
     """Returns the current selection for each from the given views"""
 
-    selections = []
-    for view in views:
-        selections.append(view.sel())
-    return selections
+    return [view.sel() for view in views]
+
+
+def set_plugin_mode(_mode: int) -> None:
+    global mode
+
+    mode = _mode
+
+    if mode == MODE_ADD_CURSOR:
+        msg = "AceJump (add cursor)"
+    elif mode == MODE_SELECT:
+        msg = "AceJump (select)"
+    elif mode == MODE_JUMP_BEFORE:
+        msg = "AceJump (jump before)"
+    elif mode == MODE_JUMP_AFTER:
+        msg = "AceJump (jump after)"
+    else:
+        msg = ""
+
+    sublime.status_message(msg)
+
+
+# set the default plugin mode
+set_plugin_mode(MODE_DEFAULT)
 
 
 class AceJumpCommand(sublime_plugin.WindowCommand):
@@ -119,7 +139,7 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
         self.syntax = cast(str, get_views_setting(self.all_views, "syntax"))
         self.sel = get_views_sel(self.all_views)
 
-        settings = sublime.load_settings("AceJump.sublime-settings")
+        settings = sublime.load_settings(SETTINGS_FILENAME)
         self.highlight = cast(str, settings.get("labels_scope", "invalid"))
         self.labels = cast(str, settings.get("labels", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"))
         self.case_sensitivity = cast(bool, settings.get("search_case_sensitivity", True))
@@ -132,7 +152,6 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
         self.show_prompt(self.prompt(), self.init_value())
 
     def is_enabled(self) -> bool:
-        global ace_jump_active
         return not ace_jump_active
 
     def show_prompt(self, title: str, value: str) -> None:
@@ -151,7 +170,7 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
 
         if len(command) == 1:
             self.char = command
-            if self.char == "<" or self.char == ">":
+            if self.char in "<>":
                 # re.escape escapes these 2 characters but it isn't needed for view.find()
                 self.add_labels(self.regex().format(self.char))
             else:
@@ -165,7 +184,7 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
 
     def submit(self) -> None:
         """Handles the behavior after closing the prompt"""
-        global next_search, mode, ace_jump_active
+        global next_search, ace_jump_active
         next_search = False
 
         self.remove_labels()
@@ -175,7 +194,7 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
         if self.valid_target(self.target):
             self.jump(self.labels.find(self.target))
 
-        mode = 0
+        set_plugin_mode(MODE_DEFAULT)
         ace_jump_active = False
 
         """Saves changed views after jump is complete"""
@@ -221,7 +240,7 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
 
             self.views.remove(view)
 
-        set_views_syntax(self.all_views, "Packages/AceJump-Chinese/AceJump.sublime-syntax")
+        set_views_syntax(self.all_views, SYTNAX_FILENAME)
         set_views_settings(self.all_views, self.view_settings, self.view_values)
 
     def remove_labels(self) -> None:
@@ -247,7 +266,7 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
     def views_to_label(self) -> List[sublime.View]:
         """Returns the views that still have to be labeled"""
 
-        if mode != 0:
+        if mode != MODE_DEFAULT:
             return [self.window.active_view()]  # type: ignore
 
         return self.all_views[:] if len(self.views) == 0 else self.views
@@ -303,11 +322,9 @@ class AceJumpWordCommand(AceJumpCommand):
         return r"\b{}"
 
     def after_jump(self, view: sublime.View) -> None:
-        global mode
-
-        if mode == 3:
+        if mode == MODE_JUMP_AFTER:
             view.run_command("move", {"by": "word_ends", "forward": True})
-            mode = 0
+            set_plugin_mode(MODE_DEFAULT)
 
 
 class AceJumpCharCommand(AceJumpCommand):
@@ -323,20 +340,16 @@ class AceJumpCharCommand(AceJumpCommand):
         return r"{}"
 
     def after_jump(self, view: sublime.View) -> None:
-        global mode
-
-        if mode == 3:
+        if mode == MODE_JUMP_AFTER:
             view.run_command("move", {"by": "characters", "forward": True})
-            mode = 0
+            set_plugin_mode(MODE_DEFAULT)
 
     def jump(self, index: int) -> None:
-        global mode
-
         view = self.changed_views[self.view_for_index(index)]
         if self.jump_behind_last and "\n" in view.substr(hints[index].end()):
-            mode = 3
+            set_plugin_mode(MODE_JUMP_AFTER)
 
-        return AceJumpCommand.jump(self, index)
+        AceJumpCommand.jump(self, index)
 
 
 class AceJumpLineCommand(AceJumpCommand):
@@ -352,12 +365,10 @@ class AceJumpLineCommand(AceJumpCommand):
         return r"(.*)[^\s](.*)\n"
 
     def after_jump(self, view: sublime.View) -> None:
-        global mode
-
-        if mode == 3:
+        if mode == MODE_JUMP_AFTER:
             view.run_command("move", {"by": "lines", "forward": True})
             view.run_command("move", {"by": "characters", "forward": False})
-            mode = 0
+            set_plugin_mode(MODE_DEFAULT)
 
 
 class AceJumpWithinLineCommand(AceJumpCommand):
@@ -373,14 +384,11 @@ class AceJumpWithinLineCommand(AceJumpCommand):
         return r"\b\w"
 
     def after_jump(self, view: sublime.View) -> None:
-        global mode
-
-        if mode == 3:
+        if mode == MODE_JUMP_AFTER:
             view.run_command("move", {"by": "word_ends", "forward": True})
-            mode = 0
+            set_plugin_mode(MODE_DEFAULT)
 
     def get_region_type(self) -> str:
-
         return "current_line"
 
 
@@ -388,27 +396,21 @@ class AceJumpSelectCommand(sublime_plugin.WindowCommand):
     """Command for turning on select mode"""
 
     def run(self) -> None:
-        global mode
-
-        mode = 0 if mode == 1 else 1
+        set_plugin_mode(MODE_DEFAULT if mode == MODE_SELECT else MODE_SELECT)
 
 
 class AceJumpAddCursorCommand(sublime_plugin.WindowCommand):
     """Command for turning on multiple cursor mode"""
 
     def run(self) -> None:
-        global mode
-
-        mode = 0 if mode == 2 else 2
+        set_plugin_mode(MODE_DEFAULT if mode == MODE_ADD_CURSOR else MODE_ADD_CURSOR)
 
 
 class AceJumpAfterCommand(sublime_plugin.WindowCommand):
     """Modifier-command which lets you jump behind a character, word or line"""
 
     def run(self) -> None:
-        global mode
-
-        mode = 0 if mode == 3 else 3
+        set_plugin_mode(MODE_DEFAULT if mode == MODE_JUMP_AFTER else MODE_JUMP_AFTER)
 
 
 class AddAceJumpLabelsCommand(sublime_plugin.TextCommand):
@@ -419,37 +421,41 @@ class AddAceJumpLabelsCommand(sublime_plugin.TextCommand):
     ) -> None:
         global hints
 
+        settings = sublime.load_settings(SETTINGS_FILENAME)
+        self.should_find_chinese = cast(bool, settings.get("should_find_chinese", True))
+
         characters = self.find(regex, region_type, len(labels), case_sensitive)
         self.add_labels(edit, characters, labels)
         self.view.add_regions("ace_jump_hints", characters, highlight)
 
-        hints = hints + characters
+        hints += characters
 
     def find(self, regex: str, region_type: str, max_labels: int, case_sensitive: bool) -> List[sublime.Region]:
         """Returns a list with all occurences matching the regex"""
 
         global next_search, last_index
 
-        chars = []
+        found_regions = []  # type: List[sublime.Region]
 
         region = self.get_target_region(region_type)
         content = self.view.substr(region)
         next_search = next_search if next_search else region.begin()
         last_search = region.end()
 
-        # 測試用句子：如果方法中若传入变量，那么直接加前缀是不可以了。而是要将变量转为utf-8编码
-        # find matched Chinese chars from the target region
-        matched_chinese_chars = set()
-        for match in chinese_regex_obj.finditer(content):
-            chinese_string = content[slice(*match.span())]
+        if self.should_find_chinese:
+            # 測試用句子：如果方法中若传入变量，那么直接加前缀是不可以了。而是要将变量转为utf-8编码
+            # find matched Chinese chars from the target region
+            matched_chinese_chars = set()
+            for match in chinese_regex_obj.finditer(content):
+                chinese_string = content[slice(*match.span())]
 
-            for idx, char_pinyin in enumerate(xpy.get_pinyin(chinese_string, "-").split("-")):
-                if re.match(regex, char_pinyin[0]):
-                    matched_chinese_chars.add(chinese_string[idx])
+                for idx, char_pinyin in enumerate(xpy.get_pinyin(chinese_string, "-").split("-")):
+                    if re.match(regex, char_pinyin[0]):
+                        matched_chinese_chars.add(chinese_string[idx])
 
-        # add matched Chinese chars into the search regex
-        if matched_chinese_chars:
-            regex = "{}|[{}]".format(regex, "".join(matched_chinese_chars))
+            # add matched Chinese chars into the search regex which is used later
+            if matched_chinese_chars:
+                regex += r"|[{}]".format("".join(matched_chinese_chars))
 
         while next_search < last_search and last_index < max_labels:
             word = self.view.find(regex, next_search, 0 if case_sensitive else sublime.IGNORECASE)
@@ -459,19 +465,18 @@ class AddAceJumpLabelsCommand(sublime_plugin.TextCommand):
 
             last_index += 1
             next_search = word.end()
-            chars.append(sublime.Region(word.begin(), word.begin() + 1))
+            found_regions.append(sublime.Region(word.begin(), word.begin() + 1))
 
         if last_index < max_labels:
             next_search = False
 
-        return chars
+        return found_regions
 
     def add_labels(self, edit: sublime.Edit, regions: List[sublime.Region], labels: str) -> None:
         """Replaces the given regions with labels"""
 
-        for i in range(len(regions)):
-            region = regions[i]
-            label = labels[last_index + i - len(regions)]
+        for idx, region in enumerate(regions):
+            label = labels[last_index + idx - len(regions)]
 
             # if the target char is Chinese,
             # use full-width label to prevent from content position shifting
@@ -501,15 +506,14 @@ class PerformAceJumpCommand(sublime_plugin.TextCommand):
     """Command performing the jump"""
 
     def run(self, edit: sublime.Edit, target: int) -> None:
-        global mode
-        if mode == 0 or mode == 3:
+        if mode == MODE_JUMP_BEFORE or mode == MODE_JUMP_AFTER:
             self.view.sel().clear()
 
         self.view.sel().add(self.target_region(target))
         self.view.show(target)
 
     def target_region(self, target: int) -> sublime.Region:
-        if mode == 1:
+        if mode == MODE_SELECT:
             for cursor in self.view.sel():
                 return sublime.Region(cursor.begin(), target)
 
