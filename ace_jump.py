@@ -1,5 +1,6 @@
-import sublime, sublime_plugin
-import re, itertools
+import re
+import sublime
+import sublime_plugin
 
 last_index = 0
 hints = []
@@ -61,11 +62,19 @@ def get_views_settings(views, settings):
     return values
 
 
-def set_views_syntax(views, syntax):
+def set_views_syntax(views, syntaxes):
     """Sets the syntax highlighting for all given views"""
 
+    if isinstance(syntaxes, str):
+        syntaxes = [syntaxes]
+
     for i in range(len(views)):
-        views[i].set_syntax_file(syntax[i])
+        try:
+            syntax = syntaxes[i]
+        except IndexError:
+            syntax = syntaxes[-1]
+
+        views[i].set_syntax_file(syntax)
 
 
 def set_views_sel(views, selections):
@@ -204,10 +213,7 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
 
             self.views.remove(view)
 
-        set_views_syntax(
-            self.all_views, list(itertools.repeat("Packages/AceJump/AceJump.tmLanguage", len(self.all_views)))
-        )
-
+        set_views_syntax(self.all_views, "Packages/AceJump/AceJump.tmLanguage")
         set_views_settings(self.all_views, self.view_settings, self.view_values)
 
     def remove_labels(self):
