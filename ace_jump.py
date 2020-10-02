@@ -2,9 +2,13 @@ import re
 import sublime
 import sublime_plugin
 
+from .libs.xpinyin import Pinyin
+
+xpy = Pinyin()
 last_index = 0
 hints = []
 search_regex = r""
+chinese_regex_obj = re.compile("[\u4E00-\u9FD5]+", re.U)
 
 next_search = False
 
@@ -405,8 +409,23 @@ class AddAceJumpLabelsCommand(sublime_plugin.TextCommand):
         chars = []
 
         region = self.get_target_region(region_type)
+        content = self.view.substr(region)
         next_search = next_search if next_search else region.begin()
         last_search = region.end()
+
+        # 測試用句子：如果方法中若传入变量，那么直接加前缀是不可以了。而是要将变量转为utf-8编码
+        # find matched Chinese chars from the target region
+        matched_chinese_chars = set()
+        for match in chinese_regex_obj.finditer(content):
+            chinese_string = content[slice(*match.span())]
+
+            for idx, char_pinyin in enumerate(xpy.get_pinyin(chinese_string, "-").split("-")):
+                if re.match(regex, char_pinyin[0]):
+                    matched_chinese_chars.add(chinese_string[idx])
+
+        # add matched Chinese chars into the search regex
+        if matched_chinese_chars:
+            regex = "{}|[{}]".format(regex, "".join(matched_chinese_chars))
 
         while next_search < last_search and last_index < max_labels:
             word = self.view.find(regex, next_search, 0 if case_sensitive else sublime.IGNORECASE)
