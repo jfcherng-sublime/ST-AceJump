@@ -2,6 +2,7 @@ import re
 import sublime
 import sublime_plugin
 
+from .libs import width_converter
 from .libs.xpinyin import Pinyin
 
 xpy = Pinyin()
@@ -446,7 +447,15 @@ class AddAceJumpLabelsCommand(sublime_plugin.TextCommand):
         """Replaces the given regions with labels"""
 
         for i in range(len(regions)):
-            self.view.replace(edit, regions[i], labels[last_index + i - len(regions)])
+            region = regions[i]
+            label = labels[last_index + i - len(regions)]
+
+            # if the target char is Chinese,
+            # use full-width label to prevent from content position shifting
+            if chinese_regex_obj.match(self.view.substr(region)):
+                label = width_converter.h2f(label)
+
+            self.view.replace(edit, region, label)
 
     def get_target_region(self, region_type):
 
