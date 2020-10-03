@@ -157,7 +157,7 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
         self.sel = get_views_sel(self.all_views)
 
         settings = sublime.load_settings(SETTINGS_FILENAME)
-        self.highlight = cast(str, settings.get("labels_scope", "invalid"))
+        self.labels_scope = cast(str, settings.get("labels_scope", "invalid"))
         self.labels = cast(str, settings.get("labels", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"))
         self.case_sensitivity = cast(bool, settings.get("search_case_sensitivity", True))
         self.jump_behind_last = cast(bool, settings.get("jump_behind_last_characters", False))
@@ -245,7 +245,7 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
                     "regex": regex,
                     "region_type": self.region_type,
                     "labels": self.labels,
-                    "highlight": self.highlight,
+                    "labels_scope": self.labels_scope,
                     "case_sensitive": self.case_sensitivity,
                 },
             )
@@ -436,7 +436,7 @@ class AddAceJumpLabelsCommand(sublime_plugin.TextCommand):
     """Command for adding labels to the views"""
 
     def run(
-        self, edit: sublime.Edit, regex: str, region_type: str, labels: str, highlight: str, case_sensitive: bool
+        self, edit: sublime.Edit, regex: str, region_type: str, labels: str, labels_scope: str, case_sensitive: bool
     ) -> None:
         global hints
 
@@ -449,7 +449,7 @@ class AddAceJumpLabelsCommand(sublime_plugin.TextCommand):
         self.add_labels(edit, characters, labels)
 
         if self.hinting_mode == HINTING_MODE_REPLACE_CHAR:
-            self.view.add_regions("ace_jump_hints", characters, highlight)
+            self.view.add_regions("ace_jump_hints", characters, labels_scope)
 
         hints += characters
 
