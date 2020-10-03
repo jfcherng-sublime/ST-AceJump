@@ -158,6 +158,7 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
 
         settings = sublime.load_settings(SETTINGS_FILENAME)
         self.labels_scope = cast(str, settings.get("labels_scope", "invalid"))
+        self.inactive_carets_scope = cast(str, settings.get("inactive_carets_scope", "text.plain"))
         self.labels = cast(str, settings.get("labels", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"))
         self.case_sensitivity = cast(bool, settings.get("search_case_sensitivity", True))
         self.jump_behind_last = cast(bool, settings.get("jump_behind_last_characters", False))
@@ -168,6 +169,7 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
         self.view_settings_values = get_views_settings(self.all_views, self.view_settings_keys)
 
         self.show_prompt(self.prompt(), self.init_value())
+        self.add_faked_carets(self.all_views)
 
     def is_enabled(self) -> bool:
         return not ace_jump_active
@@ -220,6 +222,20 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
             for view in self.changed_views:
                 if not view.is_read_only() and not view.is_dirty():
                     view.run_command("save")
+
+    def add_faked_carets(self, views: List[sublime.View]) -> None:
+        """
+        After showing the prompt, we lose the view focus and can't see existing carets.
+        Hence here, we use add_regions() to mimic existing carets.
+        """
+
+        for view in views:
+            view.add_regions(
+                "ace_jump_faked_carets",
+                [sublime.Region(region.b) for region in view.sel()],
+                self.inactive_carets_scope,
+                flags=sublime.DRAW_EMPTY | sublime.DRAW_NO_FILL,
+            )
 
     def add_labels(self, regex: str) -> None:
         """Adds labels to characters matching the regex"""
@@ -543,6 +559,8 @@ class RemoveAceJumpLabelsCommand(sublime_plugin.TextCommand):
         elif self.hinting_mode == HINTING_MODE_INLINE_PHANTOM:
             ps = get_view_phantom_set(self.view)
             ps.update([])
+
+        self.view.erase_regions("ace_jump_faked_carets")
 
 
 class PerformAceJumpCommand(sublime_plugin.TextCommand):

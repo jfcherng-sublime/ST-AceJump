@@ -5,6 +5,9 @@
     // Syntax highlighting scope for the labels
     "labels_scope": "invalid",
 
+    // Controls the color of inactive carets when inputting the character.
+    "inactive_carets_scope": "text.plain",
+
     // Toggles case sensitive search in word and character modes.
     "search_case_sensitivity": true,
 
