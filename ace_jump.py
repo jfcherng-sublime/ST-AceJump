@@ -3,7 +3,7 @@ import re
 import sublime
 import sublime_plugin
 
-from typing import Any, Dict, List, Union, cast
+from typing import Any, Dict, List, Optional, Union, cast
 
 from .libs import char_width_converter
 from .libs.xpinyin import Pinyin
@@ -12,6 +12,7 @@ PACKAGE_NAME = __package__.partition(".")[0]
 
 SETTINGS_FILENAME = "AceJump.sublime-settings"
 SYTNAX_FILENAME = "Packages/{}/AceJump.sublime-syntax".format(PACKAGE_NAME)
+XPINYIN_DICT_PATH = "Packages/{}/libs/xpinyin/Mandarin.dat".format(PACKAGE_NAME)
 
 CHINESE_REGEX_OBJ = re.compile("[\u4E00-\u9FD5]+", re.U)
 
@@ -34,13 +35,31 @@ HINTING_MODE_REPLACE_CHAR = 1
 HINTING_MODE_INLINE_PHANTOM = 2
 HINTING_MODE_DEFAULT = HINTING_MODE_REPLACE_CHAR
 
-xpy = Pinyin()
+xpy = None  # type: Optional[Pinyin]
 last_index = 0
 hints = []  # type: List[sublime.Region]
 phantom_sets = {}  # type: Dict[int, sublime.PhantomSet]
 
 next_search = False  # type: Union[int, bool]
 ace_jump_active = False
+
+
+def plugin_loaded() -> None:
+    init_xpy()
+
+
+def init_xpy() -> None:
+    global xpy
+
+    pinyin_map = {}  # type: Dict[str, str]
+    for line_num0, line in enumerate(sublime.load_resource(XPINYIN_DICT_PATH).splitlines()):
+        try:
+            k, v = line.split("\t")
+            pinyin_map[k] = v
+        except ValueError:
+            print_msg("Malformed pinyin data line {}: `{}`".format(line_num0 + 1, line))
+
+    xpy = Pinyin(pinyin_map)
 
 
 def get_active_views(window: sublime.Window, current_buffer_only: bool) -> List[sublime.View]:
@@ -133,6 +152,10 @@ def set_plugin_mode(_mode: int) -> None:
         msg = ""
 
     sublime.status_message(msg)
+
+
+def print_msg(msg: str) -> None:
+    print("[{}] {}".format(PACKAGE_NAME, msg))
 
 
 # set the default plugin mode
