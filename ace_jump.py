@@ -169,7 +169,6 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
         self.view_settings_values = get_views_settings(self.all_views, self.view_settings_keys)
 
         self.show_prompt(self.prompt(), self.init_value())
-        self.add_faked_carets(self.all_views)
 
     def is_enabled(self) -> bool:
         return not ace_jump_active
@@ -178,11 +177,12 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
         """Shows a prompt with the given title and value in the window"""
 
         self.window.show_input_panel(title, value, self.next_batch, self.on_input, self.submit)
+        self.add_faked_carets(self.all_views)
 
     def next_batch(self, command: str) -> None:
         """Displays the next batch of labels after pressing return"""
 
-        self.remove_labels()
+        self.remove_artifacts()
         self.show_prompt(self.prompt(), self.char)
 
     def on_input(self, command: str) -> None:
@@ -207,7 +207,7 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
         global next_search, ace_jump_active
         next_search = False
 
-        self.remove_labels()
+        self.remove_artifacts()
         set_views_sel(self.all_views, self.sel)
         set_views_syntax(self.all_views, self.syntax)
 
@@ -287,6 +287,16 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
                 view = self.changed_views[self.view_for_index(breakpoint - 1)]
                 view.run_command("remove_ace_jump_labels")
                 last_breakpoint = breakpoint
+
+    def remove_faked_carets(self) -> None:
+        """Removes all previously added faked carets"""
+
+        for view in self.all_views:
+            view.erase_regions("ace_jump_faked_carets")
+
+    def remove_artifacts(self) -> None:
+        self.remove_labels()
+        self.remove_faked_carets()
 
     def jump(self, index: int) -> None:
         """Performs the jump action"""
@@ -559,8 +569,6 @@ class RemoveAceJumpLabelsCommand(sublime_plugin.TextCommand):
         elif self.hinting_mode == HINTING_MODE_INLINE_PHANTOM:
             ps = get_view_phantom_set(self.view)
             ps.update([])
-
-        self.view.erase_regions("ace_jump_faked_carets")
 
 
 class PerformAceJumpCommand(sublime_plugin.TextCommand):
