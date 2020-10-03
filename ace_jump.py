@@ -54,30 +54,30 @@ def get_active_views(window: sublime.Window, current_buffer_only: bool) -> List[
     return [window.active_view_in_group(idx) for idx in group_indexes]  # type: ignore
 
 
-def set_views_setting(views: List[sublime.View], setting: str, values: List[Any]) -> None:
-    """Sets the values for the setting in all given views"""
+def set_views_setting(views: List[sublime.View], key: str, view_values: List[Any]) -> None:
+    """Sets the value for the setting in all given views"""
 
-    for i in range(len(views)):
-        views[i].settings().set(setting, values[i])
+    for view, view_value in zip(views, view_values):
+        view.settings().set(key, view_value)
 
 
-def set_views_settings(views: List[sublime.View], settings: List[str], values: List[Any]) -> None:
+def set_views_settings(views: List[sublime.View], keys: List[str], views_values: List[List[Any]]) -> None:
     """Sets the values for all settings in all given views"""
 
-    for i in range(len(settings)):
-        set_views_setting(views, settings[i], values[i])
+    for key, view_values in zip(keys, views_values):
+        set_views_setting(views, key, view_values)
 
 
-def get_views_setting(views: List[sublime.View], setting: str) -> List[Any]:
+def get_views_setting(views: List[sublime.View], key: str) -> List[Any]:
     """Returns the setting value for all given views"""
 
-    return [view.settings().get(setting) for view in views]
+    return [view.settings().get(key) for view in views]
 
 
-def get_views_settings(views: List[sublime.View], settings: List[str]) -> List[List[Any]]:
+def get_views_settings(views: List[sublime.View], keys: List[str]) -> List[List[Any]]:
     """Gets the settings for every given view"""
 
-    return [get_views_setting(views, setting) for setting in settings]
+    return [get_views_setting(views, key) for key in keys]
 
 
 def set_views_syntax(views: List[sublime.View], syntaxes: Union[str, List[str]]) -> None:
@@ -101,9 +101,9 @@ def set_views_syntax(views: List[sublime.View], syntaxes: Union[str, List[str]])
 def set_views_sel(views: List[sublime.View], selections: List[sublime.Selection]) -> None:
     """Sets the selections for all given views"""
 
-    for i in range(len(views)):
-        for sel in selections[i]:
-            views[i].sel().add(sel)
+    for view, selection in zip(views, selections):
+        for region in selection:
+            view.sel().add(region)
 
 
 def get_views_sel(views: List[sublime.View]) -> List[sublime.Selection]:
