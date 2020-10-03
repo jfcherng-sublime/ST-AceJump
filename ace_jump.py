@@ -5,7 +5,7 @@ import sublime_plugin
 
 from typing import Any, Dict, List, Union, cast
 
-from .libs import width_converter
+from .libs import char_width_converter
 from .libs.xpinyin import Pinyin
 
 PACKAGE_NAME = __package__.partition(".")[0]
@@ -533,7 +533,7 @@ class AddAceJumpLabelsCommand(sublime_plugin.TextCommand):
                 # if the target char is Chinese,
                 # use full-width label to prevent from content position shifting
                 if CHINESE_REGEX_OBJ.match(self.view.substr(region)):
-                    label = width_converter.h2f(label)
+                    label = char_width_converter.h2f(label)
 
                 self.view.replace(edit, region, label)
             elif self.hinting_mode == HINTING_MODE_INLINE_PHANTOM:
