@@ -164,8 +164,8 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
         self.save_files_after_jump = cast(bool, settings.get("save_files_after_jump", False))
         self.hinting_mode = cast(int, settings.get("hinting_mode", HINTING_MODE_DEFAULT))
 
-        self.view_settings = cast(List[Any], settings.get("view_settings", []))
-        self.view_values = get_views_settings(self.all_views, self.view_settings)
+        self.view_settings_keys = cast(List[Any], settings.get("view_settings_keys", []))
+        self.view_settings_values = get_views_settings(self.all_views, self.view_settings_keys)
 
         self.show_prompt(self.prompt(), self.init_value())
 
@@ -260,7 +260,7 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
 
         if self.hinting_mode == HINTING_MODE_REPLACE_CHAR:
             set_views_syntax(self.all_views, SYTNAX_FILENAME)
-            set_views_settings(self.all_views, self.view_settings, self.view_values)
+            set_views_settings(self.all_views, self.view_settings_keys, self.view_settings_values)
 
     def remove_labels(self) -> None:
         """Removes all previously added labels"""
