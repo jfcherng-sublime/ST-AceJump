@@ -3,7 +3,7 @@ import re
 import sublime
 import sublime_plugin
 
-from typing import Any, Callable, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Union, cast
 
 from .libs import width_converter
 from .libs.xpinyin import Pinyin
@@ -12,6 +12,8 @@ PACKAGE_NAME = __package__.partition(".")[0]
 
 SETTINGS_FILENAME = "AceJump.sublime-settings"
 SYTNAX_FILENAME = "Packages/{}/AceJump.sublime-syntax".format(PACKAGE_NAME)
+
+CHINESE_REGEX_OBJ = re.compile("[\u4E00-\u9FD5]+", re.U)
 
 PHANTOM_TEMPLATE = """
 <body class="ace-jump-phantom">
@@ -35,8 +37,6 @@ HINTING_MODE_DEFAULT = HINTING_MODE_REPLACE_CHAR
 xpy = Pinyin()
 last_index = 0
 hints = []  # type: List[sublime.Region]
-search_regex = r""
-chinese_regex_obj = re.compile("[\u4E00-\u9FD5]+", re.U)
 phantom_sets = {}  # type: Dict[int, sublime.PhantomSet]
 
 next_search = False  # type: Union[int, bool]
@@ -495,7 +495,7 @@ class AddAceJumpLabelsCommand(sublime_plugin.TextCommand):
             # 測試用句子：如果方法中若传入变量，那么直接加前缀是不可以了。而是要将变量转为utf-8编码
             # find matched Chinese chars from the target region
             matched_chinese_chars = set()
-            for match in chinese_regex_obj.finditer(content):
+            for match in CHINESE_REGEX_OBJ.finditer(content):
                 chinese_string = content[slice(*match.span())]
 
                 for idx, char_pinyin in enumerate(xpy.get_pinyin(chinese_string, "-").split("-")):
@@ -532,7 +532,7 @@ class AddAceJumpLabelsCommand(sublime_plugin.TextCommand):
             if self.hinting_mode == HINTING_MODE_REPLACE_CHAR:
                 # if the target char is Chinese,
                 # use full-width label to prevent from content position shifting
-                if chinese_regex_obj.match(self.view.substr(region)):
+                if CHINESE_REGEX_OBJ.match(self.view.substr(region)):
                     label = width_converter.h2f(label)
 
                 self.view.replace(edit, region, label)
