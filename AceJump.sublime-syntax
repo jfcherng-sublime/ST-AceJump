@@ -3,8 +3,10 @@
 # http://www.sublimetext.com/docs/3/syntax.html
 name: AceJump
 hidden: true
-scope: comment
+version: 2
+scope: text.ace_jump
+
 contexts:
   main:
-    - match: (.*)
-      scope: text.ace_jump
+    - match: .+
+      scope: comment
