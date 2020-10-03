@@ -14,7 +14,8 @@ After selecting a mode, you type in a character (except in line mode, where you 
 
 - Some refactoring.
 - Support jumping to a Chinese char via the first char of its pinyin.
-- New hinting mode: via inline phantom
+- Show faked carets when the user is inputting in the input panel.
+- New hinting mode: inline phantom
 
 ## Install
 
