@@ -1,20 +1,26 @@
+from __future__ import annotations
+
 import abc
 import re
+from typing import Any, Generator, Iterable, TypeVar
+
 import sublime
 import sublime_plugin
-
-from typing import Any, Dict, List, Optional, Union, cast
 
 from .libs import char_width_converter
 from .libs.xpinyin import Pinyin
 
-PACKAGE_NAME = __package__.partition(".")[0]
+assert __package__
+
+_T = TypeVar("_T")
+
+PLUGIN_NAME = __package__.partition(".")[0]
 
 SETTINGS_FILENAME = "AceJump.sublime-settings"
-SYTNAX_FILENAME = "Packages/{}/AceJump.sublime-syntax".format(PACKAGE_NAME)
-XPINYIN_DICT_PATH = "Packages/{}/libs/xpinyin/Mandarin.dat".format(PACKAGE_NAME)
+SYTNAX_FILENAME = f"Packages/{PLUGIN_NAME}/AceJump.sublime-syntax"
+XPINYIN_DICT_PATH = f"Packages/{PLUGIN_NAME}/libs/xpinyin/Mandarin.dat"
 
-CHINESE_REGEX_OBJ = re.compile("[\u4E00-\u9FD5]+", re.U)
+CHINESE_REGEX_OBJ = re.compile("[\u4e00-\u9fd5]+", re.UNICODE)
 
 PHANTOM_TEMPLATE = """
 <body class="ace-jump-phantom">
@@ -35,12 +41,13 @@ HINTING_MODE_REPLACE_CHAR = 1
 HINTING_MODE_INLINE_PHANTOM = 2
 HINTING_MODE_DEFAULT = HINTING_MODE_REPLACE_CHAR
 
-xpy = None  # type: Optional[Pinyin]
+xpy: Pinyin | None = None
+mode = MODE_DEFAULT
 last_index = 0
-hints = []  # type: List[sublime.Region]
-phantom_sets = {}  # type: Dict[int, sublime.PhantomSet]
+hints: list[sublime.Region] = []
+phantom_sets: dict[int, sublime.PhantomSet] = {}
 
-next_search = False  # type: Union[int, bool]
+next_search: int | bool = False
 ace_jump_active = False
 
 
@@ -51,55 +58,58 @@ def plugin_loaded() -> None:
 def init_xpy() -> None:
     global xpy
 
-    pinyin_map = {}  # type: Dict[str, str]
+    pinyin_map: dict[str, str] = {}
     for line_num0, line in enumerate(sublime.load_resource(XPINYIN_DICT_PATH).splitlines()):
         try:
             k, v = line.split("\t")
             pinyin_map[k] = v
         except ValueError:
-            print_msg("Malformed pinyin data line {}: `{}`".format(line_num0 + 1, line))
+            print_msg(f"Malformed pinyin data line {line_num0 + 1}: `{line}`")
 
     xpy = Pinyin(pinyin_map)
 
 
-def get_active_views(window: sublime.Window, current_buffer_only: bool) -> List[sublime.View]:
-    """Returns all currently visible views"""
+def only_truthy(iterable: Iterable[_T | None]) -> Generator[_T, None, None]:
+    yield from filter(None, iterable)
 
+
+def get_active_views(window: sublime.Window, current_buffer_only: bool) -> list[sublime.View]:
+    """Returns all currently visible views"""
     if current_buffer_only:
         group_indexes = [window.active_group()]
     else:
         group_indexes = list(range(window.num_groups()))
 
-    return [window.active_view_in_group(idx) for idx in group_indexes]  # type: ignore
+    return list(only_truthy(window.active_view_in_group(idx) for idx in group_indexes))
 
 
-def set_views_setting(views: List[sublime.View], key: str, view_values: List[Any]) -> None:
+def set_views_setting(views: list[sublime.View], key: str, view_values: list[Any]) -> None:
     """Sets the value for the setting in all given views"""
 
     for view, view_value in zip(views, view_values):
         view.settings().set(key, view_value)
 
 
-def set_views_settings(views: List[sublime.View], keys: List[str], views_values: List[List[Any]]) -> None:
+def set_views_settings(views: list[sublime.View], keys: list[str], views_values: list[list[Any]]) -> None:
     """Sets the values for all settings in all given views"""
 
     for key, view_values in zip(keys, views_values):
         set_views_setting(views, key, view_values)
 
 
-def get_views_setting(views: List[sublime.View], key: str) -> List[Any]:
+def get_views_setting(views: list[sublime.View], key: str) -> list[Any]:
     """Returns the setting value for all given views"""
 
     return [view.settings().get(key) for view in views]
 
 
-def get_views_settings(views: List[sublime.View], keys: List[str]) -> List[List[Any]]:
+def get_views_settings(views: list[sublime.View], keys: list[str]) -> list[list[Any]]:
     """Gets the settings for every given view"""
 
     return [get_views_setting(views, key) for key in keys]
 
 
-def set_views_syntax(views: List[sublime.View], syntaxes: Union[str, List[str]]) -> None:
+def set_views_syntax(views: list[sublime.View], syntaxes: str | list[str]) -> None:
     """Sets the syntax highlighting for all given views"""
 
     if not syntaxes:
@@ -117,7 +127,7 @@ def set_views_syntax(views: List[sublime.View], syntaxes: Union[str, List[str]])
         views[i].assign_syntax(syntax)
 
 
-def set_views_sel(views: List[sublime.View], selections: List[sublime.Selection]) -> None:
+def set_views_sel(views: list[sublime.View], selections: list[sublime.Selection]) -> None:
     """Sets the selections for all given views"""
 
     for view, selection in zip(views, selections):
@@ -125,7 +135,7 @@ def set_views_sel(views: List[sublime.View], selections: List[sublime.Selection]
             view.sel().add(region)
 
 
-def get_views_sel(views: List[sublime.View]) -> List[sublime.Selection]:
+def get_views_sel(views: list[sublime.View]) -> list[sublime.Selection]:
     """Returns the current selection for each from the given views"""
 
     return [view.sel() for view in views]
@@ -155,7 +165,7 @@ def set_plugin_mode(_mode: int) -> None:
 
 
 def print_msg(msg: str) -> None:
-    print("[{}] {}".format(PACKAGE_NAME, msg))
+    print(f"[{PLUGIN_NAME}] {msg}")
 
 
 # set the default plugin mode
@@ -171,24 +181,24 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
 
         self.char = ""
         self.target = ""
-        self.views = []  # type: List[sublime.View]
-        self.changed_views = []  # type: List[sublime.View]
-        self.breakpoints = []  # type: List[int]
+        self.views: list[sublime.View] = []
+        self.changed_views: list[sublime.View] = []
+        self.breakpoints: list[int] = []
 
         self.all_views = get_active_views(self.window, current_buffer_only)
-        self.syntax = cast(str, get_views_setting(self.all_views, "syntax"))
+        self.syntax: list[str] = get_views_setting(self.all_views, "syntax")
         self.sel = get_views_sel(self.all_views)
 
         settings = sublime.load_settings(SETTINGS_FILENAME)
-        self.labels_scope = cast(str, settings.get("labels_scope", "invalid"))
-        self.inactive_carets_scope = cast(str, settings.get("inactive_carets_scope", "text.plain"))
-        self.labels = cast(str, settings.get("labels", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"))
-        self.case_sensitivity = cast(bool, settings.get("search_case_sensitivity", True))
-        self.jump_behind_last = cast(bool, settings.get("jump_behind_last_characters", False))
-        self.save_files_after_jump = cast(bool, settings.get("save_files_after_jump", False))
-        self.hinting_mode = cast(int, settings.get("hinting_mode", HINTING_MODE_DEFAULT))
+        self.labels_scope: str = settings.get("labels_scope", "invalid")
+        self.inactive_carets_scope: str = settings.get("inactive_carets_scope", "text.plain")
+        self.labels: str = settings.get("labels", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+        self.case_sensitivity: bool = settings.get("search_case_sensitivity", True)
+        self.jump_behind_last: bool = settings.get("jump_behind_last_characters", False)
+        self.save_files_after_jump: bool = settings.get("save_files_after_jump", False)
+        self.hinting_mode: int = settings.get("hinting_mode", HINTING_MODE_DEFAULT)
 
-        self.view_settings_keys = cast(List[Any], settings.get("view_settings_keys", []))
+        self.view_settings_keys: list[Any] = settings.get("view_settings_keys", [])
         self.view_settings_values = get_views_settings(self.all_views, self.view_settings_keys)
 
         self.show_prompt(self.prompt(), self.init_value())
@@ -246,7 +256,7 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
                 if not view.is_read_only() and not view.is_dirty():
                     view.run_command("save")
 
-    def add_faked_carets(self, views: List[sublime.View]) -> None:
+    def add_faked_carets(self, views: list[sublime.View]) -> None:
         """
         After showing the prompt, we lose the view focus and can't see existing carets.
         Hence here, we use add_regions() to mimic existing carets.
@@ -263,18 +273,18 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
     def add_labels(self, regex: str) -> None:
         """Adds labels to characters matching the regex"""
 
-        global last_index, hints
+        global last_index
 
         last_index = 0
-        hints = []
+        hints.clear()
 
         self.views = self.views_to_label()
         self.region_type = self.get_region_type()
-        self.changed_views = []  # type: List[sublime.View]
-        self.breakpoints = []  # type: List[int]
-        changed_buffers = []  # type: List[int]
+        self.changed_views = []
+        self.breakpoints = []
+        changed_buffers: list[int] = []
 
-        for view in self.views[:]:
+        for view in self.views.copy():
             if view.buffer_id() in changed_buffers:
                 break
 
@@ -331,11 +341,11 @@ class AceJumpCommand(sublime_plugin.WindowCommand):
         view.run_command("perform_ace_jump", {"target": region})
         self.after_jump(view)
 
-    def views_to_label(self) -> List[sublime.View]:
+    def views_to_label(self) -> list[sublime.View]:
         """Returns the views that still have to be labeled"""
 
         if mode != MODE_DEFAULT:
-            return [self.window.active_view()]  # type: ignore
+            return [view] if (view := self.window.active_view()) else []
 
         return self.all_views[:] if len(self.views) == 0 else self.views
 
@@ -490,9 +500,9 @@ class AddAceJumpLabelsCommand(sublime_plugin.TextCommand):
         global hints
 
         settings = sublime.load_settings(SETTINGS_FILENAME)
-        self.should_find_chinese = cast(bool, settings.get("should_find_chinese", True))
-        self.hinting_mode = cast(int, settings.get("hinting_mode", HINTING_MODE_DEFAULT))
-        self.phantom_css = cast(str, settings.get("phantom_css", ""))
+        self.should_find_chinese: bool = settings.get("should_find_chinese", True)
+        self.hinting_mode: int = settings.get("hinting_mode", HINTING_MODE_DEFAULT)
+        self.phantom_css: str = settings.get("phantom_css", "")
 
         characters = self.find(regex, region_type, len(labels), case_sensitive)
         self.add_labels(edit, characters, labels)
@@ -502,16 +512,16 @@ class AddAceJumpLabelsCommand(sublime_plugin.TextCommand):
 
         hints += characters
 
-    def find(self, regex: str, region_type: str, max_labels: int, case_sensitive: bool) -> List[sublime.Region]:
+    def find(self, regex: str, region_type: str, max_labels: int, case_sensitive: bool) -> list[sublime.Region]:
         """Returns a list with all occurences matching the regex"""
 
         global next_search, last_index
 
-        found_regions = []  # type: List[sublime.Region]
+        found_regions: list[sublime.Region] = []
 
         region = self.get_target_region(region_type)
         content = self.view.substr(region)
-        next_search = next_search if next_search else region.begin()
+        next_search = next_search or region.begin()
         last_search = region.end()
 
         if self.should_find_chinese:
@@ -521,6 +531,7 @@ class AddAceJumpLabelsCommand(sublime_plugin.TextCommand):
             for match in CHINESE_REGEX_OBJ.finditer(content):
                 chinese_string = content[slice(*match.span())]
 
+                assert xpy
                 for idx, char_pinyin in enumerate(xpy.get_pinyin(chinese_string, "-").split("-")):
                     if re.match(regex, char_pinyin[0]):
                         matched_chinese_chars.add(chinese_string[idx])
@@ -544,7 +555,7 @@ class AddAceJumpLabelsCommand(sublime_plugin.TextCommand):
 
         return found_regions
 
-    def add_labels(self, edit: sublime.Edit, regions: List[sublime.Region], labels: str) -> None:
+    def add_labels(self, edit: sublime.Edit, regions: list[sublime.Region], labels: str) -> None:
         """Replaces the given regions with labels"""
 
         phantoms = []  # List[sublime.Phantom]
@@ -572,10 +583,11 @@ class AddAceJumpLabelsCommand(sublime_plugin.TextCommand):
         ps.update(phantoms)
 
     def get_target_region(self, region_type: str) -> sublime.Region:
-        return {
-            "visible_region": lambda view: view.visible_region(),
-            "current_line": lambda view: view.line(view.sel()[0]),
-        }.get(region_type)(self.view)
+        if region_type == "visible_region":
+            return self.view.visible_region()
+        if region_type == "current_line":
+            return self.view.line(self.view.sel()[0])
+        raise ValueError(f"Invalid region type: {region_type}")
 
 
 class RemoveAceJumpLabelsCommand(sublime_plugin.TextCommand):
@@ -583,7 +595,7 @@ class RemoveAceJumpLabelsCommand(sublime_plugin.TextCommand):
 
     def run(self, edit: sublime.Edit) -> None:
         settings = sublime.load_settings(SETTINGS_FILENAME)
-        self.hinting_mode = cast(bool, settings.get("hinting_mode", HINTING_MODE_DEFAULT))
+        self.hinting_mode: bool = settings.get("hinting_mode", HINTING_MODE_DEFAULT)
 
         if self.hinting_mode == HINTING_MODE_REPLACE_CHAR:
             self.view.erase_regions("ace_jump_hints")
